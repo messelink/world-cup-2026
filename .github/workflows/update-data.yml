@@ -2,7 +2,11 @@ name: Update data
 
 on:
   schedule:
-    - cron: '0 7 * * *'   # daily 07:00 UTC — after footballratings' nightly refresh + the day's matches
+    # Every 6h (offset off the hour to dodge cron congestion). Results (Wikipedia) are
+    # caught within hours of full-time; ratings (footballratings, ~1-day lag) are picked
+    # up whenever its nightly batch lands. Idempotent + commit-only-on-change makes the
+    # extra runs free, so we don't have to guess either source's exact update time.
+    - cron: '17 */6 * * *'   # 00:17, 06:17, 12:17, 18:17 UTC
   workflow_dispatch:
 
 # Self-contained: scrape -> commit -> deploy. A push by GITHUB_TOKEN does NOT trigger
