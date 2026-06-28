@@ -9,23 +9,39 @@ close to call).
 
 ## How it works
 
-- The slider blends two Elo rating snapshots: **0%** = pure pre-tournament prior,
-  **100%** = pure group-stage signal, intermediate values blend linearly. Default is
-  40% pre / 60% post.
-- Winners propagate automatically through each round; the predicted champion updates live.
+- The slider blends two Elo snapshots: **0%** = pure pre-tournament prior (`PRE`),
+  **100%** = current form (`LATEST`), intermediate values blend linearly. Default 40/60.
+- **Played knockout matches show the real result** (score + `FT` badge) and lock that
+  matchup; the real winner feeds the next round. **Unplayed matches are predicted** from
+  the slider blend. Winners propagate automatically; the predicted champion updates live.
 
 ## Data sources
 
 All Elo ratings are from [footballratings.org](https://footballratings.org), which mirrors
-[eloratings.net](https://eloratings.net) nightly. Two snapshots:
+[eloratings.net](https://eloratings.net) nightly.
 
-- **PRE** — each team's Elo after their last match before the tournament kicked off on
-  11 June 2026 (read from individual team pages).
-- **POST** — each team's Elo after all three group-stage matches, computed by applying the
-  standard eloratings.net formula (K=60 for World Cup matches, goal-difference factor,
-  no home advantage on neutral venues) to the actual group results, starting from PRE.
+- **PRE** (static) — each team's Elo after their last match before the tournament kicked
+  off on 11 June 2026.
+- **LATEST** (auto-updated) — each team's current footballratings Elo, i.e. all real
+  signal to date. As knockout rounds are played, the teams still alive are refreshed.
 
 The Round of 32 pairings are the confirmed 2026 World Cup fixtures.
+
+## Auto-update
+
+`scripts/update.mjs` keeps the data current with no manual work:
+
+- **Results** ← the [Wikipedia knockout page](https://en.wikipedia.org/wiki/2026_FIFA_World_Cup_knockout_stage)
+  (`footballbox` templates) — including penalty shootouts / advancement.
+- **Ratings** ← footballratings.org team pages, fetched only for teams **still alive**
+  in the knockouts (a team's Elo only moves when it plays).
+- **Fail-loud:** any scrape/validation problem writes nothing and exits non-zero, so the
+  site keeps its last known-good data. Unparseable penalty shootouts (rare) fall back to a
+  prediction with a warning rather than recording a wrong winner.
+
+The workflow `.github/workflows/update-data.yml` runs daily (07:00 UTC) and on demand:
+scrape → commit if changed → deploy. Run locally with `node scripts/update.mjs`
+(`--full` refreshes every team; `--dry-run` prints without writing).
 
 ## Hosting
 
