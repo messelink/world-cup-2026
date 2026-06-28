@@ -56,7 +56,8 @@ const LATEST={"Argentina":2144,"Spain":2144,"France":2123,"England":2028,"Brazil
 const ACTUAL={"r32":[],"r16":[],"qf":[],"sf":[],"final":[]};
 const UPDATED="2026-06-28 08:35 UTC";
 // AUTO-DATA-END
-const r32=[['South Africa','Canada'],['Brazil','Japan'],['Germany','Paraguay'],['Netherlands','Morocco'],['Ivory Coast','Norway'],['France','Sweden'],['Mexico','Ecuador'],['England','Congo DR'],['Belgium','Senegal'],['USA','Bosnia'],['Spain','Austria'],['Portugal','Croatia'],['Switzerland','Algeria'],['Australia','Egypt'],['Argentina','Cape Verde'],['Colombia','Ghana']];
+// Order follows the official 2026 bracket so sequential pairing (0v1, 2v3, …) reproduces the real tree.
+const r32=[['Germany','Paraguay'],['France','Sweden'],['South Africa','Canada'],['Netherlands','Morocco'],['Portugal','Croatia'],['Spain','Austria'],['USA','Bosnia'],['Belgium','Senegal'],['Brazil','Japan'],['Ivory Coast','Norway'],['Mexico','Ecuador'],['England','Congo DR'],['Argentina','Cape Verde'],['Australia','Egypt'],['Switzerland','Algeria'],['Colombia','Ghana']];
 const ROUNDS=[{key:'r32',label:'Round of 32'},{key:'r16',label:'Round of 16'},{key:'qf',label:'QF'},{key:'sf',label:'SF'},{key:'final',label:'Final'}];
 const CLOSE=40;
 function getElo(n,w){const pre=PRE[n]??1600,lat=LATEST[n]??pre;return pre*(1-w)+lat*w;}

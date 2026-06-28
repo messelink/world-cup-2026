@@ -22,8 +22,8 @@ const UA = 'Mozilla/5.0 (wc2026-bracket auto-update; +https://github.com/messeli
 const FULL = process.argv.includes('--full');
 const DRY = process.argv.includes('--dry-run');
 
-// Round-of-32 pairings — must stay in sync with index.html's r32 array.
-const r32 = [['South Africa','Canada'],['Brazil','Japan'],['Germany','Paraguay'],['Netherlands','Morocco'],['Ivory Coast','Norway'],['France','Sweden'],['Mexico','Ecuador'],['England','Congo DR'],['Belgium','Senegal'],['USA','Bosnia'],['Spain','Austria'],['Portugal','Croatia'],['Switzerland','Algeria'],['Australia','Egypt'],['Argentina','Cape Verde'],['Colombia','Ghana']];
+// Round-of-32 pairings in official-bracket order — must stay in sync with index.html's r32 array.
+const r32 = [['Germany','Paraguay'],['France','Sweden'],['South Africa','Canada'],['Netherlands','Morocco'],['Portugal','Croatia'],['Spain','Austria'],['USA','Bosnia'],['Belgium','Senegal'],['Brazil','Japan'],['Ivory Coast','Norway'],['Mexico','Ecuador'],['England','Congo DR'],['Argentina','Cape Verde'],['Australia','Egypt'],['Switzerland','Algeria'],['Colombia','Ghana']];
 const TEAMS = [...new Set(r32.flat())];
 const ROUND_KEYS = ['r32','r16','qf','sf','final'];
 
