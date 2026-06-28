@@ -1,0 +1,10 @@
+# Build output (if a static-site generator is ever added)
+/site/
+/_site/
+/build/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*~
+.*.swp

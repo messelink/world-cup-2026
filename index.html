@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:sans-serif;padding:1rem;background:#fff;color:#111}
+.ctrl{margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1px solid #ddd}
+.slider-row{display:flex;align-items:center;gap:10px}
+.slider-row label{font-size:13px;color:#555;white-space:nowrap}
+.slider-row input{flex:1}
+.ratio{font-size:12px;color:#888;margin-top:5px;text-align:center}
+.champ-bar{display:flex;align-items:center;gap:10px;margin-bottom:1rem;font-size:13px;color:#555}
+.champ-name{font-size:15px;font-weight:500;color:#3b6d11}
+.bracket{overflow-x:auto}
+.rounds{display:flex;align-items:stretch;min-width:860px}
+.round{display:flex;flex-direction:column;flex:1;min-width:0}
+.rlabel{font-size:10px;font-weight:500;color:#aaa;text-transform:uppercase;letter-spacing:.05em;padding:0 4px 6px;text-align:center}
+.matches{display:flex;flex-direction:column;justify-content:space-around;flex:1}
+.mwrap{display:flex;align-items:center;flex:1}
+.match{background:#fff;border:0.5px solid #ddd;border-radius:7px;width:100%;margin:2px 3px;overflow:hidden}
+.team{display:flex;align-items:center;padding:4px 6px;gap:3px;border-bottom:0.5px solid #eee}
+.team:last-child{border-bottom:none}
+.team.W{background:#eaf3de}
+.team.L{opacity:.42}
+.tn{font-size:11px;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.team.W .tn{font-weight:500;color:#3b6d11}
+.sc{font-size:10px;color:#aaa;min-width:28px;text-align:right;flex-shrink:0}
+.team.W .sc{color:#3b6d11;font-weight:500}
+.tctc{background:#faeeda;color:#633806;font-size:9px;padding:1px 3px;border-radius:3px;flex-shrink:0;line-height:1.4}
+.conn{display:flex;flex-direction:column;justify-content:space-around;width:8px;flex-shrink:0}
+.cl{border-right:0.5px solid #ddd;flex:1}
+.note{font-size:11px;color:#aaa;margin-top:.75rem;line-height:1.6}
+</style></head><body>
+<div class="ctrl">
+  <div class="slider-row">
+    <label>Pre-tournament Elo</label>
+    <input type="range" id="fw" min="0" max="100" step="5" value="60">
+    <label>Post-group Elo</label>
+  </div>
+  <div class="ratio" id="ratio">Pre-tournament 40% / Post-group 60%</div>
+</div>
+<div class="champ-bar">
+  <span>Predicted champion:</span>
+  <span class="champ-name" id="champ-name">—</span>
+  <span style="font-size:11px;color:#aaa" id="champ-score"></span>
+</div>
+<div class="bracket"><div class="rounds" id="bracket"></div></div>
+<p class="note">Elo from footballratings.org / eloratings.net. tctc = too close to call (gap &lt; 40 pts). Slide left = pre-tournament form, right = group stage results.</p>
+<script>
+const PRE={'Spain':2157,'Argentina':2115,'France':2063,'England':2024,'Brazil':1991,'Colombia':1982,'Portugal':1989,'Netherlands':1944,'Germany':1932,'Croatia':1912,'Norway':1914,'Switzerland':1891,'Japan':1906,'Belgium':1894,'Mexico':1875,'Senegal':1860,'Morocco':1827,'Austria':1830,'Algeria':1772,'Ecuador':1938,'Ivory Coast':1695,'Australia':1777,'Egypt':1696,'USA':1726,'Sweden':1712,'Canada':1788,'Paraguay':1834,'South Africa':1517,'Bosnia':1595,'Ghana':1510,'Cape Verde':1578,'Congo DR':1661};
+const POST={'Argentina':2144,'Spain':2134,'France':2120,'England':2031,'Brazil':1992,'Netherlands':1972,'Portugal':1973,'Colombia':1938,'Germany':1919,'Norway':1914,'Switzerland':1912,'Ecuador':1903,'Japan':1902,'Mexico':1901,'Croatia':1895,'Belgium':1881,'Morocco':1840,'Senegal':1832,'Austria':1822,'USA':1786,'Algeria':1775,'Paraguay':1773,'Canada':1771,'Congo DR':1755,'Australia':1750,'Ivory Coast':1749,'Sweden':1727,'Egypt':1672,'Bosnia':1627,'Cape Verde':1589,'Ghana':1561,'South Africa':1538};
+const r32=[['South Africa','Canada'],['Brazil','Japan'],['Germany','Paraguay'],['Netherlands','Morocco'],['Ivory Coast','Norway'],['France','Sweden'],['Mexico','Ecuador'],['England','Congo DR'],['Belgium','Senegal'],['USA','Bosnia'],['Spain','Austria'],['Portugal','Croatia'],['Switzerland','Algeria'],['Australia','Egypt'],['Argentina','Cape Verde'],['Colombia','Ghana']];
+const CLOSE=40;
+function getElo(n,w){const pre=PRE[n]||1600,post=POST[n]||pre;return pre*(1-w)+post*w;}
+function predict(a,b,w){const ea=getElo(a,w),eb=getElo(b,w);const winner=ea>=eb?a:b;return{winner,scores:{[a]:Math.round(ea),[b]:Math.round(eb)},close:Math.abs(ea-eb)<CLOSE};}
+function buildRound(pairs,w){return pairs.map(([a,b])=>({teams:[a,b],...predict(a,b,w)}));}
+function advance(res){const n=[];for(let i=0;i<res.length;i+=2)if(res[i+1])n.push([res[i].winner,res[i+1].winner]);return n;}
+function render(sliderVal){
+  const w=sliderVal/100;
+  document.getElementById('ratio').textContent='Pre-tournament '+Math.round((1-w)*100)+'% / Post-group '+Math.round(w*100)+'%';
+  const rd32=buildRound(r32,w),rd16=buildRound(advance(rd32),w),qf=buildRound(advance(rd16),w),sf=buildRound(advance(qf),w),fin=buildRound(advance(sf),w);
+  const champion=fin[0]?.winner;
+  document.getElementById('champ-name').textContent=champion||'—';
+  document.getElementById('champ-score').textContent=champion?'('+fin[0].scores[champion]+' Elo)':'';
+  const rounds=[{label:'Round of 32',matches:rd32},{label:'Round of 16',matches:rd16},{label:'QF',matches:qf},{label:'SF',matches:sf},{label:'Final',matches:fin}];
+  const bracket=document.getElementById('bracket');
+  bracket.innerHTML='';
+  rounds.forEach((round,ri)=>{
+    const col=document.createElement('div');col.className='round';
+    col.innerHTML='<div class="rlabel">'+round.label+'</div>';
+    const md=document.createElement('div');md.className='matches';
+    round.matches.forEach(m=>{
+      const wrap=document.createElement('div');wrap.className='mwrap';
+      const mel=document.createElement('div');mel.className='match';
+      m.teams.forEach(t=>{
+        const isW=t===m.winner;
+        const el=document.createElement('div');el.className='team '+(isW?'W':'L');
+        const badge=(m.close&&isW)?'<span class="tctc">tctc</span>':'';
+        el.innerHTML='<span class="tn">'+t+'</span>'+badge+'<span class="sc">'+m.scores[t]+'</span>';
+        mel.appendChild(el);
+      });
+      wrap.appendChild(mel);
+      if(ri<rounds.length-1){const c=document.createElement('div');c.className='conn';c.innerHTML='<div class="cl"></div><div class="cl"></div>';wrap.appendChild(c);}
+      md.appendChild(wrap);
+    });
+    col.appendChild(md);bracket.appendChild(col);
+  });
+  const cc=document.createElement('div');cc.className='round';
+  cc.innerHTML='<div class="rlabel">Winner</div><div class="matches"><div class="mwrap"><div style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:10px;text-align:center"><div style="font-size:22px;margin-bottom:6px">&#127942;</div><div style="font-size:12px;font-weight:500;color:#3b6d11">'+(champion||'?')+'</div></div></div></div>';
+  bracket.appendChild(cc);
+}
+document.getElementById('fw').addEventListener('input',e=>render(+e.target.value));
+render(60);
+</script>
+</body></html>
