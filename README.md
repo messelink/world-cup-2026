@@ -38,10 +38,16 @@ The Round of 32 pairings are the confirmed 2026 World Cup fixtures.
 - **Fail-loud:** any scrape/validation problem writes nothing and exits non-zero, so the
   site keeps its last known-good data. Unparseable penalty shootouts (rare) fall back to a
   prediction with a warning rather than recording a wrong winner.
+- **Idempotent:** it commits (and re-deploys) only when ratings or results actually
+  change — so the "Data updated `YYYY-MM-DD HH:MM UTC`" stamp marks the last real change,
+  not the last check.
 
-The workflow `.github/workflows/update-data.yml` runs daily (07:00 UTC) and on demand:
-scrape → commit if changed → deploy. Run locally with `node scripts/update.mjs`
-(`--full` refreshes every team; `--dry-run` prints without writing).
+The workflow `.github/workflows/update-data.yml` runs **every 6 hours** (00:17 / 06:17 /
+12:17 / 18:17 UTC) and on demand: scrape → commit if changed → deploy. Frequent runs are
+free because they no-op when nothing changed; this catches results within hours of
+full-time and picks up footballratings' ~1-day nightly lag without guessing its exact
+timing. Run locally with `node scripts/update.mjs` (`--full` refreshes every team;
+`--dry-run` prints without writing).
 
 ## Hosting
 
