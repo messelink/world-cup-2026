@@ -1,0 +1,54 @@
+name: Update data
+
+on:
+  schedule:
+    - cron: '0 7 * * *'   # daily 07:00 UTC — after footballratings' nightly refresh + the day's matches
+  workflow_dispatch:
+
+# Self-contained: scrape -> commit -> deploy. A push by GITHUB_TOKEN does NOT trigger
+# deploy.yml (anti-recursion), so we deploy Pages inline here when data changes.
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Scrape ratings + results
+        run: node scripts/update.mjs
+      - name: Commit if changed
+        id: commit
+        run: |
+          if [[ -n "$(git status --porcelain index.html)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add index.html
+            git commit -m "Auto-update Elo ratings + knockout results ($(date -u +%F))"
+            git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No data changes."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Upload Pages artifact
+        if: steps.commit.outputs.changed == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - name: Deploy to Pages
+        if: steps.commit.outputs.changed == 'true'
+        id: deployment
+        uses: actions/deploy-pages@v4
