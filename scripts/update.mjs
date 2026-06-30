@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // Auto-update the bracket's data block in ../index.html.
 //   LATEST ratings  <- footballratings.org team pages (embedded JSON rating series)
-//   ACTUAL results  <- Wikipedia 2026 WC knockout page (footballbox templates)
+//   ACTUAL results  <- ESPN hidden JSON API (one call covers the whole knockout stage)
 //
-// Fail-loud: any scrape/validation problem throws -> nothing is written and the
+// Fail-loud: any fetch/validation problem throws -> nothing is written and the
 // process exits non-zero, so the deployed site keeps its last known-good data.
-// Penalty shootouts that can't be parsed are left as predictions with a loud
-// warning (rather than recording a wrong winner or blocking all other updates).
+// ESPN's per-competitor `winner` flag resolves extra-time/penalty advancement
+// directly, so a drawn knockout match still yields the correct advancing team.
 //
 // Flags:  --full      refresh every team's rating (initial sync / periodic reconcile)
 //         --dry-run   compute and print, but don't write index.html
@@ -30,11 +30,12 @@ const ROUND_KEYS = ['r32','r16','qf','sf','final'];
 // bracket name -> footballratings.org URL slug (default: lowercase, spaces->hyphens)
 const SLUG = { 'USA':'united-states', 'Congo DR':'dr-congo' };
 const slug = n => SLUG[n] || n.toLowerCase().replace(/ /g, '-');
-// Wikipedia display name -> bracket name (only the exceptions)
-const WIKI2BR = { 'DR Congo':'Congo DR', 'United States':'USA', 'Bosnia and Herzegovina':'Bosnia' };
-const norm = n => WIKI2BR[n] || n;
-
-const decode = s => s.replace(/&#160;/g,' ').replace(/&amp;/g,'&').replace(/&#58;/g,':').replace(/&#39;/g,"'").trim();
+// ESPN scoreboard endpoint — one call returns every knockout match (R32 -> final).
+const ESPN_URL = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=20260628-20260719';
+// ESPN display name -> bracket name (only the exceptions; all other names match exactly).
+const ESPN2BR = { 'Bosnia-Herzegovina':'Bosnia', 'United States':'USA' };
+const norm = n => ESPN2BR[n] || n;
+const TEAMSET = new Set(TEAMS);
 
 async function fetchText(url) {
   const r = await fetch(url, { headers: { 'User-Agent': UA }, redirect: 'follow' });
@@ -53,24 +54,25 @@ async function fetchRating(name) {
   return last.rating;
 }
 
-// Parse the Wikipedia knockout page into a flat list of completed matches.
-export function parseResults(html) {
-  const h = html.replace(/\s+/g, ' ');
-  const boxCount = (h.match(/<th class="fhome"/g) || []).length;
-  if (boxCount < 16) throw new Error(`only ${boxCount} footballbox cells found — Wikipedia structure changed?`);
-  const teamName = cell => { const a = cell.match(/<a [^>]*>([^<]+)<\/a>/); return a ? decode(a[1]) : null; };
-  const re = /<th class="fhome"[^>]*>(.*?)<\/th>\s*<th class="fscore">(.*?)<\/th>\s*<th class="faway"[^>]*>(.*?)<\/th>/g;
+// Parse the ESPN scoreboard JSON into a flat list of completed knockout matches.
+export function parseResults(json) {
+  const events = json.events || [];
+  if (events.length < 16) throw new Error(`ESPN returned only ${events.length} events — API or league slug changed?`);
   const out = [];
-  let m;
-  while ((m = re.exec(h)) !== null) {
-    const home = teamName(m[1]), away = teamName(m[3]);
+  for (const e of events) {
+    const c = e.competitions && e.competitions[0];
+    if (!c || !(c.status && c.status.type && c.status.type.completed)) continue;   // finished matches only
+    const cs = c.competitors || [];
+    const home = cs.find(x => x.homeAway === 'home'), away = cs.find(x => x.homeAway === 'away');
     if (!home || !away) continue;
-    const g = m[2].match(/(\d+)\s*[–—-]\s*(\d+)/);   // numeric score => played
-    if (!g) continue;                                          // e.g. "Match 73" => not played
+    const H = norm(home.team.displayName), A = norm(away.team.displayName);
+    const gh = parseInt(home.score, 10), ga = parseInt(away.score, 10);
+    if (!Number.isInteger(gh) || !Number.isInteger(ga)) continue;
+    if (!TEAMSET.has(H) || !TEAMSET.has(A)) throw new Error(`ESPN team not mapped to a bracket team: "${H}" / "${A}"`);
+    const winner = home.winner ? H : (away.winner ? A : null);               // explicit; resolves ET/penalties
     let pen = null;
-    const pm = m[2].match(/\((\d+)\s*[–—-]\s*(\d+)\s*p\)/i) || m[2].match(/pen[^)]*?(\d+)\s*[–—-]\s*(\d+)/i);
-    if (pm) pen = [+pm[1], +pm[2]];
-    out.push({ home: norm(home), away: norm(away), gh: +g[1], ga: +g[2], pen });
+    if (home.shootoutScore != null && away.shootoutScore != null) pen = [+home.shootoutScore, +away.shootoutScore];
+    out.push({ home: H, away: A, gh, ga, winner, pen });
   }
   return out;
 }
@@ -93,10 +95,11 @@ export function buildActual(matches) {
       const ga = aHome ? mt.gh : mt.ga, gb = aHome ? mt.ga : mt.gh;
       const pen = mt.pen ? (aHome ? [mt.pen[0], mt.pen[1]] : [mt.pen[1], mt.pen[0]]) : null;
       let w;
-      if (ga > gb) w = a;
+      if (mt.winner) w = mt.winner;                        // ESPN explicit winner — resolves ET/penalties
+      else if (ga > gb) w = a;
       else if (gb > ga) w = b;
       else if (pen) w = pen[0] > pen[1] ? a : b;
-      else { warnings.push(`${a} v ${b}: drawn ${ga}-${gb}, penalties not parsed — left as prediction (add ACTUAL.${key}[${i}] manually if needed)`); winners.push(null); return; }
+      else { warnings.push(`${a} v ${b}: drawn ${ga}-${gb} with no winner flag — left as prediction`); winners.push(null); return; }
       const entry = { w, g: [ga, gb] };
       if (pen) entry.pen = pen;
       ACTUAL[key][i] = entry;
@@ -124,10 +127,10 @@ async function main() {
   const oldLatest = extract(html, 'LATEST');
   const oldActual = extract(html, 'ACTUAL');
 
-  const wiki = await fetchText('https://en.wikipedia.org/wiki/2026_FIFA_World_Cup_knockout_stage');
-  const matches = parseResults(wiki);
+  const espn = JSON.parse(await fetchText(ESPN_URL));
+  const matches = parseResults(espn);
   const { ACTUAL, warnings, alive } = buildActual(matches);
-  console.log(`Parsed ${matches.length} completed match(es) from Wikipedia; ${alive.length} team(s) still alive in the knockouts.`);
+  console.log(`Parsed ${matches.length} completed match(es) from ESPN; ${alive.length} team(s) still alive in the knockouts.`);
 
   const LATEST = { ...oldLatest };
   const refresh = FULL ? TEAMS : alive;          // only fetch teams whose rating can have moved

@@ -31,8 +31,10 @@ The Round of 32 pairings are the confirmed 2026 World Cup fixtures.
 
 `scripts/update.mjs` keeps the data current with no manual work:
 
-- **Results** ← the [Wikipedia knockout page](https://en.wikipedia.org/wiki/2026_FIFA_World_Cup_knockout_stage)
-  (`footballbox` templates) — including penalty shootouts / advancement.
+- **Results** ← ESPN's scoreboard JSON API (one call covers the whole knockout stage).
+  Each team carries an explicit `winner` flag, so extra-time / penalty advancement is
+  resolved directly (a drawn knockout still yields the correct advancing team), plus the
+  shootout score for display.
 - **Ratings** ← footballratings.org team pages, fetched only for teams **still alive**
   in the knockouts (a team's Elo only moves when it plays).
 - **Fail-loud:** any scrape/validation problem writes nothing and exits non-zero, so the
